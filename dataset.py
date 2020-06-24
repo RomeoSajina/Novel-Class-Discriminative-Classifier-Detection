@@ -12,7 +12,7 @@ class StreamDataset(ABC):
 
     def __init__(self, config: Config):
         self.config = config
-        self.num_of_outputs = 10
+        self.num_of_outputs = 100
         self.dataset_name = "dataset_name"
 
         self.x_train = None
@@ -109,7 +109,7 @@ class StreamDataset(ABC):
             brightness_range=apply_scale_for_brightness_range(scale),
             #brightness_range=(0.1, 1.9),
             shear_range=MAX * scale,
-            zoom_range=MAX * scale)
+            zoom_range=.2) #MAX * scale)
 
         return datagen
 
@@ -286,4 +286,15 @@ class Cifar10BWDataset(StreamDataset):
         x_train = np.array([np.array(Image.fromarray(x, mode="RGB").convert('L')) for x in x_train])
         x_test = np.array([np.array(Image.fromarray(x, mode="RGB").convert('L')) for x in x_test])
 
+        return (x_train, y_train), (x_test, y_test)
+
+
+class Cifar10Dataset(StreamDataset):
+
+    def __init__(self, config: Config):
+        super().__init__(config=config)
+        self.dataset_name = "cifar10"
+
+    def _load(self):
+        (x_train, y_train), (x_test, y_test) = cifar10.load_data()
         return (x_train, y_train), (x_test, y_test)

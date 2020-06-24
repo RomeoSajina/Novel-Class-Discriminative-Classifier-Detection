@@ -45,8 +45,6 @@ class StreamSimulator:
         else:
             self.model.train(self.dataset.x_train, self.dataset.y_train)
 
-        #self.model.train(self.dataset.x_train, self.dataset.y_train)
-
         self.detector.after_model_trained()
 
     def stream(self):
@@ -62,6 +60,9 @@ class StreamSimulator:
 
         for i in range(self.config.repeat):
 
+            if i > 0: # Print stats for info
+                self.stats.print(logger=None)
+
             print("Repeat: " + str(i+1))
 
             train_classes = randomly_generated[i]
@@ -69,118 +70,19 @@ class StreamSimulator:
 
             self._reset()
 
-            #self.stats.add(key=str(train_classes), entry=self.run_stream(train_classes=train_classes, test_classes=test_classes))
             self.stats.add_sim_stats(train_classes, self.run_stream(train_classes=train_classes, test_classes=test_classes))
 
-        FileManager.cache_object(self.stats, self.config.dataset_name + "_" + self.config.detector_name)
+        FileManager.cache_object(self.stats, self.config.dataset_name + "_" + self.config.detector_name + "_" + datetime.now().strftime("%m_%d_%Y-%H_%M"))
 
         self.stats.print(logger=logger)
 
         return self.stats
 
-    """
-    def run_stream2(self, train_classes, test_classes):
-
-        stats = {}
-
-        idxs = np.where([q in train_classes for q in np.argmax(self.dataset.y_train, axis=1)])[0]
-
-        self.dataset.info()
-
-        self.dataset.x_unseen = np.concatenate((self.dataset.x_unseen, np.delete(self.dataset.x_train, idxs, axis=0)))
-        self.dataset.y_unseen = np.concatenate((self.dataset.y_unseen, np.delete(self.dataset.y_train, idxs, axis=0)))
-
-        self.dataset.x_train = self.dataset.x_train[idxs]
-        self.dataset.y_train = self.dataset.y_train[idxs]
-
-        def train_detector(k_out, n_out, config):
-            des_x = np.concatenate((k_out, n_out))
-            des_y = np.concatenate((np.zeros((len(k_out), 1)), np.ones((len(n_out), 1))))
-
-            n_o = self.model.get_layer_output(self.dataset.get_augmented())
-            k_o = self.model.get_layer_output(self.dataset.x_train)
-
-            des_x = np.concatenate((des_x, k_o, n_o))
-            des_y = np.concatenate((des_y, np.zeros((len(k_o), 1)), np.ones((len(n_o), 1))))
-
-            des_y = np_utils.to_categorical(des_y, 2)
-            print("train detector: " + str(des_x.shape), str(des_y.shape))
-            self.detector.model.fit(des_x, des_y, verbose=self.config.verbose, epochs=self.config.train_epochs*2, shuffle=True)
-
-        x, y, k_outputs, n_outputs = None, None, None, None
-        m_trained = False
-        for tc in train_classes:
-
-            ix = np.where(np.argmax(self.dataset.y_train, axis=1) == tc)[0]
-            x_ = self.dataset.x_train[ix]
-            y_ = self.dataset.y_train[ix]
-
-            x = x_ if x is None else np.concatenate((x, x_))
-            y = y_ if y is None else np.concatenate((y, y_))
-
-            print(np.unique(np.argmax(y, axis=1)))
-
-            if m_trained:
-                n_o = self.model.get_layer_output(x)
-                n_outputs = np.concatenate((n_outputs, n_o)) if n_outputs is not None else n_o
-
-            self.model.train(x, y)
-            m_trained = True
-
-            k_o = self.model.get_layer_output(x)
-            k_outputs = np.concatenate((k_outputs, k_o)) if k_outputs is not None else k_o
-
-        train_detector(k_outputs, n_outputs, self.config)
-
-        # Take one class from seen classes and one novel class and evaluate
-        # Than train with predicted classes
-        for k in range(len(train_classes)):
-            t, n = train_classes[k], test_classes[k]
-            key = str(t) + "-" + str(n)
-            print(key)
-
-            novel_idxs = np.where(np.argmax(self.dataset.y_unseen, axis=1) == n)[0]
-            n_x = self.dataset.x_unseen[novel_idxs][:self.config.num_of_class_instances] #TODO: TMP
-            n_y = self.dataset.y_unseen[novel_idxs][:self.config.num_of_class_instances] #TODO: TMP
-
-            n_o = self.model.get_layer_output(n_x)
-            n_outputs = np.concatenate((n_outputs, n_o))
-
-            known_idxs = np.where(np.argmax(self.dataset.y_unseen, axis=1) == t)[0]
-            k_x = self.dataset.x_unseen[known_idxs][:self.config.num_of_class_instances] #TODO: TMP
-            k_y = self.dataset.y_unseen[known_idxs][:self.config.num_of_class_instances] #TODO: TMP
-
-            k_o = self.model.get_layer_output(k_x)
-            k_outputs = np.concatenate((k_outputs, k_o))
-
-            # Evaluate
-            _x, _y, score = self.eval(k_x, k_y, n_x, n_y, n)
-
-            print("Ha ha ha")
-            train_detector(k_outputs, n_outputs, self.config)
-
-            x = np.concatenate((x, _x))
-            y = np.concatenate((y, _y))
-
-            self.model.train(self.dataset.x_train, self.dataset.y_train)
-            # TODO train detector on predicted newly
-
-            self.dataset.x_train = x
-            self.dataset.y_train = y
-
-            indexes = np.concatenate((novel_idxs, known_idxs))
-            self.dataset.x_unseen = np.delete(self.dataset.x_unseen, indexes, axis=0)
-            self.dataset.y_unseen = np.delete(self.dataset.y_unseen, indexes, axis=0)
-
-            stats[key] = score
-
-        return stats
-    """
-
     def run_stream(self, train_classes, test_classes):
 
         stats = {}
 
+        # Move all test instances into unseen dataset
         idxs = np.where([q in train_classes for q in np.argmax(self.dataset.y_train, axis=1)])[0]
 
         self.dataset.info()
@@ -230,7 +132,7 @@ class StreamSimulator:
 
         p_cls = self.detector.predict(d_x)
 
-        cm = confusion_matrix(d_y_real, p_cls)
+        cm = confusion_matrix(d_y_real, p_cls, labels=[0, 1])
 
         known_acc = cm[0][0] / len(x_known)
         novel_acc = cm[1][1] / len(x_novel)
@@ -243,8 +145,8 @@ class StreamSimulator:
         known_x = np.delete(d_x, novel_idx, axis=0)
 
         print("New class index: ", novel_class_index)
-        novel_y = np_utils.to_categorical(np.repeat([novel_class_index], len(novel_x)), self.model.y_shape[1])
-        known_y = np_utils.to_categorical(self.model.predict_classes(known_x), self.model.y_shape[1])
+        novel_y = np_utils.to_categorical(np.repeat([novel_class_index], len(novel_x)), self.dataset.y_train.shape[1])
+        known_y = np_utils.to_categorical(self.model.predict_classes(known_x), self.dataset.y_train.shape[1])
 
         p_x = np.concatenate((known_x, novel_x))
         p_y = np.concatenate((known_y, novel_y))
@@ -260,6 +162,140 @@ class StreamSimulator:
         logger.info("".rjust(100, "-"))
 
         logger.info(str(self.config.dump()).replace(", ", "\n").replace("{", "").replace("}", ""))
+
+    def load_stats(self, date_str):
+        self.stats = FileManager.load_from_cache(self.config.dataset_name + "_" + self.config.detector_name + "_" + date_str)
+
+
+class DistanceStreamSimulator(StreamSimulator):
+
+    def __init__(self, config: Config):
+        super().__init__(config)
+
+    def generate_streaming_data(self, train_classes, test_classes):
+
+        self.dataset.info()
+
+        train_init_lenghts = [1000, 2000, 3000, 4000, 5000]
+        test_init_lenghts = [1000, 2000, 3000, 4000, 5000]
+        min_sample, max_sample = 200, 500
+
+        stream_datasets = []
+        classes_in_stream = np.array(train_classes)
+
+        x_train = np.array(self.dataset.x_train)
+        y_train = np.array(self.dataset.y_train)
+        x_unseen = np.array(self.dataset.x_unseen)
+        y_unseen = np.array(self.dataset.y_unseen)
+
+        x_t = np.array([]).reshape(np.concatenate([[0], x_train.shape[1:]]))
+        y_t = np.array([]).reshape([0, y_train.shape[1]])
+        x_u = np.array([]).reshape(np.concatenate([[0], x_train.shape[1:]]))
+        y_u = np.array([]).reshape([0, y_train.shape[1]])
+
+
+        def random_data(f_class, x_unseen, y_unseen):
+
+            c_idx = np.where(np.argmax(y_unseen, axis=1) == f_class)[0]
+
+            if f_class in classes_in_stream:
+               r_idx = np.random.choice(c_idx, np.random.randint(min_sample, max_sample), replace=False)
+            else:
+               r_idx = np.random.choice(c_idx, np.random.randint(min_sample * 2, max_sample), replace=False)
+
+            xu = x_unseen[r_idx]
+            yu = y_unseen[r_idx]
+
+            x_unseen = np.delete(x_unseen, r_idx, axis=0)
+            y_unseen = np.delete(y_unseen, r_idx, axis=0)
+
+            return xu, yu, x_unseen, y_unseen
+
+        for i in range(16):
+        #for i in range(18):
+
+            x_t = np.concatenate((x_t, x_u))
+            y_t = np.concatenate((y_t, y_u))
+
+            x_u = x_u[0:0]
+            y_u = y_u[0:0]
+
+            for k in range(5):
+
+                if train_init_lenghts[k] < 0 and np.random.randint(0, 100) < 30:
+                    continue
+
+                xu, yu, x_unseen, y_unseen = random_data(train_classes[k], x_unseen, y_unseen)
+
+                x_u = np.concatenate((x_u, xu))
+                y_u = np.concatenate((y_u, yu))
+
+                train_init_lenghts[k] -= len(xu)
+
+            # Novel/Unseen classes
+            for k in range(5):
+
+                if train_init_lenghts[k] > 0 or np.random.randint(0, 100) < 30:
+                    continue
+                else:
+                    classes_in_stream = np.unique(np.concatenate((classes_in_stream, [test_classes[k]])))
+
+                xu, yu, x_unseen, y_unseen = random_data(test_classes[k], x_unseen, y_unseen)
+
+                x_u = np.concatenate((x_u, xu))
+                y_u = np.concatenate((y_u, yu))
+
+                test_init_lenghts[k] -= len(xu)
+
+            unique, counts = np.unique(np.concatenate((np.argmax(y_u, axis=1), np.arange(0, 10))), return_counts=True)
+            print("{0}/18".format(i), dict(zip(unique, counts - 1)))
+
+            stream_datasets.append([np.array(x_t), np.array(y_t), np.array(x_u), np.array(y_u)])
+
+        stream_datasets = stream_datasets[1:]
+
+        return stream_datasets
+
+    def run_stream(self, train_classes, test_classes):
+
+        stats = {}
+        known_classes = []
+
+        self.dataset.x_unseen = np.concatenate((self.dataset.x_unseen, self.dataset.x_train))
+        self.dataset.y_unseen = np.concatenate((self.dataset.y_unseen, self.dataset.y_train))
+        self.dataset.x_train = np.array([]).reshape(np.concatenate([[0], self.dataset.x_unseen.shape[1:]]))
+        self.dataset.y_train = np.array([]).reshape([0, self.dataset.y_unseen.shape[1]])
+        self.dataset.info()
+
+        stream_datasets = self.generate_streaming_data(train_classes, test_classes)
+
+        for i, sd in enumerate(stream_datasets):
+
+            key = str(i)
+            self.dataset.x_train, self.dataset.y_train, self.dataset.x_unseen, self.dataset.y_unseen = sd
+
+            if i % 3 == 0:
+                self.dataset.info()
+                self.train()
+                known_classes = np.unique(np.argmax(self.dataset.y_train, axis=1))
+
+            k_idx, n_idx = [], []
+            for i, c in enumerate(np.argmax(self.dataset.y_unseen, axis=1)):
+                if c in known_classes:
+                    k_idx.append(i)
+                else:
+                    n_idx.append(i)
+
+            x_known = self.dataset.x_unseen[k_idx]
+            y_known = self.dataset.y_unseen[k_idx]
+            x_novel = self.dataset.x_unseen[n_idx]
+            y_novel = self.dataset.y_unseen[n_idx]
+
+            _x, _y, score = self.eval(x_known, y_known, x_novel, y_novel, 0)
+
+            stats[key] = score
+
+        return stats
 
 
 class FileManager:

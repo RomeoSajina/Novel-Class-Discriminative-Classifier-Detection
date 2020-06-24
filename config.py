@@ -4,7 +4,7 @@ class Config():
 
     def __init__(self):
 
-        self.dataset_name = "Cifar10"
+        self.dataset_name = "Mnist"
         self.detector_name = "Discriminator"
         self.repeat = 1
         self.num_of_class_instances = 1000

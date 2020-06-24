@@ -37,7 +37,7 @@ class StatsCollector:
             for cls in self.stats[tc].keys():
                 y, y_hat = self.stats[tc][cls]
 
-                cm = confusion_matrix(y, y_hat)
+                cm = confusion_matrix(y, y_hat, labels=[0, 1])
                 tp += cm[0][0]
                 fp += cm[0][1]
                 fn += cm[1][0]
